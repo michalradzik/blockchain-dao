@@ -54,6 +54,7 @@ async function main() {
   transaction = await token.transfer(investor3.address, tokens(200000))
   await transaction.wait()
 
+
   console.log(`Fetching dao...\n`)
 
   // Fetch deployed dao
@@ -65,45 +66,48 @@ async function main() {
   await transaction.wait()
   console.log(`Sent funds to dao treasury...\n`)
 
-  for (var i = 0; i < 3; i++) {
+   for (var i = 0; i < 3; i++) {
       // Create Proposal
-      transaction = await dao.connect(investor1).createProposal(`Proposal ${i + 1}`, ether(100), recipient.address)
+      const description = `This is a description for Proposal ${i + 1}`;
+      transaction = await dao.connect(investor1).createProposal(
+        `Proposal ${i + 1}`, description, ether(100), recipient.address    
+      );
       await transaction.wait()
 
       // Vote 1
-      transaction = await dao.connect(investor1).vote(i + 1)
-      await transaction.wait()
+       transaction = await dao.connect(investor1).vote(i + 1, true)
+       await transaction.wait()
 
-      // Vote 2
-      transaction = await dao.connect(investor2).vote(i + 1)
-      await transaction.wait()
+    // Vote 2
+       transaction = await dao.connect(investor2).vote(i + 1, false)
+       await transaction.wait()
 
       // Vote 3
-      transaction = await dao.connect(investor3).vote(i + 1)
-      await transaction.wait()
+       transaction = await dao.connect(investor3).vote(i + 1, true)
+       await transaction.wait()
 
       // Finalize
-      console.log('investor 1=', investor1)
-      transaction = await dao.connect(investor1).finalizeProposal(i + 1)
-      await transaction.wait()
+       transaction = await dao.connect(investor1).finalizeProposal(i + 1)
+       await transaction.wait()
 
       console.log(`Created & Finalized Proposal ${i + 1}\n`)
-  }
+  } 
 
     console.log(`Creating one more proposal...\n`)
 
     // Create one more proposal
-    transaction = await dao.connect(investor1).createProposal(`Proposal 4`, ether(100), recipient.address)
+    transaction = await dao.connect(investor1).createProposal(`Proposal 4`,'This is description', ether(100), recipient.address)
     await transaction.wait()
 
 
     // Vote 1
-    transaction = await dao.connect(investor2).vote(4)
-    await transaction.wait()
+     transaction = await dao.connect(investor2).vote(4,true)
+     await transaction.wait()
 
     // Vote 2
-    transaction = await dao.connect(investor3).vote(4)
-    await transaction.wait()
+   // transaction = await dao.connect(investor3).vote(4,true)
+    //await transaction.wait()
+
 
     console.log(`Finished.\n`)
 }

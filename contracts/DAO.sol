@@ -12,9 +12,11 @@ contract DAO {
     struct Proposal {
         uint256 id;
         string name;
+        string description;
         uint256 amount;
         address payable recipient;
-        uint256 votes;
+        uint256 votesFor;    
+        uint256 votesAgainst;
         bool finalized;
     }
 
@@ -42,6 +44,10 @@ contract DAO {
     receive() external payable {}
 
     modifier onlyInvestor() {
+        uint256 tokenBalance = token.balanceOf(msg.sender);
+    console.log("User:", msg.sender);
+    console.log("Token balance:", tokenBalance);
+        
         require(
             token.balanceOf(msg.sender) > 0,
             "must be token holder"
@@ -52,18 +58,21 @@ contract DAO {
     // Create proposal
     function createProposal(
         string memory _name,
+        string memory _description,
         uint256 _amount,
         address payable _recipient
     ) external onlyInvestor {
         require(address(this).balance >= _amount);
-
+        require(bytes(_description).length > 0, "Proposal must have a description");
         proposalCount++;
 
         proposals[proposalCount] = Proposal(
             proposalCount,
             _name,
+            _description,
             _amount,
             _recipient,
+            0,
             0,
             false
         );
@@ -76,23 +85,38 @@ contract DAO {
         );
     }
 
-    // Vote on proposal
-    function vote(uint256 _id) external onlyInvestor {
-        // Fetch proposal from mapping by id
-        Proposal storage proposal = proposals[_id];
+// Voting on a proposal
+function vote(uint256 _id, bool _isFor) external onlyInvestor {
+    // Fetch the proposal from the mapping by id
+    Proposal storage proposal = proposals[_id];
 
-        // Don't let investors vote twice
-        require(!votes[msg.sender][_id], "already voted");
+    // Ensure the user has not already voted
+    console.log('Is voted =', votes[msg.sender][_id]);
+    require(!votes[msg.sender][_id], "already voted");
 
-        // update votes
-        proposal.votes += token.balanceOf(msg.sender);
+    // Get the voting weight of the user (based on their token balance)
+    uint256 votingWeight = token.balanceOf(msg.sender);
 
-        // Track that user has voted
-        votes[msg.sender][_id] = true;
-
-        // Emit an event
-        emit Vote(_id, msg.sender);
+    // Update votes depending on whether the user supports the proposal
+     if (_isFor) {
+        proposal.votesFor += votingWeight;
+        console.log("Added votesFor:", votingWeight); 
+    } else {
+        proposal.votesAgainst += votingWeight;
+        console.log("Added votesAgainst:", votingWeight); 
     }
+
+    // Mark that the user has voted
+    votes[msg.sender][_id] = true;
+
+    // Emit the voting event
+    emit Vote(_id, msg.sender);
+}
+
+function hasVoted(uint256 _id, address _voter) external view returns (bool) {
+        return votes[_voter][_id];
+    }
+
 
     // Finalize proposal & tranfer funds
     function finalizeProposal(uint256 _id) external onlyInvestor {
@@ -106,7 +130,10 @@ contract DAO {
         proposal.finalized = true;
 
         // Check that proposal has enough votes
-        require(proposal.votes >= quorum, "must reach quorum to finalize proposal");
+        require(proposal.votesFor + proposal.votesAgainst >= quorum, "must reach quorum to finalize proposal");
+
+        // Check that proposal has enough votesFor
+        require(proposal.votesFor > proposal.votesAgainst, "must reach votesFor more than votesAgainst to finalize proposal");
 
         // Check that the contract has enough ether
         require(address(this).balance >= proposal.amount);
@@ -118,5 +145,6 @@ contract DAO {
         // Emit event
         emit Finalize(_id);
     }
+
 
 }

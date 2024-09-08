@@ -86,11 +86,6 @@
         "type": "string"
       },
       {
-        "internalType": "string",
-        "name": "_description",
-        "type": "string"
-      },
-      {
         "internalType": "uint256",
         "name": "_amount",
         "type": "uint256"
@@ -153,11 +148,6 @@
         "type": "string"
       },
       {
-        "internalType": "string",
-        "name": "description",
-        "type": "string"
-      },
-      {
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
@@ -169,12 +159,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "votesFor",  
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "votesAgainst", 
+        "name": "votes",
         "type": "uint256"
       },
       {
@@ -214,17 +199,12 @@
   },
   {
     "inputs": [
-    {
-      "internalType": "uint256",
-      "name": "_id",
-      "type": "uint256"
-    },
-    {
-      "internalType": "bool",
-      "name": "_isFor",
-      "type": "bool"
-    }
-  ],
+      {
+        "internalType": "uint256",
+        "name": "_id",
+        "type": "uint256"
+      }
+    ],
     "name": "vote",
     "outputs": [],
     "stateMutability": "nonpayable",

@@ -74,7 +74,10 @@ function App() {
     }
     
     // Fetch proposals count
-    const count = await dao.proposalCount()
+    console.log("DAO Contract:", dao);
+    const count = await dao.proposalCount();
+    console.log("Proposal count:", count);
+
     const items = []
 
     for(var i = 0; i < count; i++) {
