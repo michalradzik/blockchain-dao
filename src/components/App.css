@@ -1,0 +1,44 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  background-color: #87CEFA;
+}
+
+.custom-bg {
+  background-color: #87CEFA;
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center;
+}
+
+.text-yellow {
+  color: #FFD700;
+}
+
+.text-red {
+  color: #FF4500;
+}
+
+.btn-yellow {
+  background-color: #FFD700;
+  border: none;
+}
+
+.btn-red {
+  background-color: #FF4500;
+  border: none;
+}
+
+.btn-yellow:hover, .btn-red:hover {
+  opacity: 0.8;
+}
+
+h1, h2 {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+hr {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+  

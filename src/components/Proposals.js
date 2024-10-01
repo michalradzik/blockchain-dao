@@ -1,42 +1,42 @@
 import Table from 'react-bootstrap/Table';
 import Button from 'react-bootstrap/Button';
+import Badge from 'react-bootstrap/Badge';
 import { useEffect, useState } from 'react';
-import { ethers } from 'ethers';
+import { formatUnits } from 'ethers';
 
 const Proposals = ({ provider, dao, proposals, quorum, setIsLoading }) => {
   const [proposalData, setProposalData] = useState({});
-  const [recipientBalances, setRecipientBalances] = useState({});
+  const [hasVotedMap, setHasVotedMap] = useState({});
 
   useEffect(() => {
-    const loadVotesAndBalances = async () => {
+    const loadVotes = async () => {
       try {
         const proposalMap = {};
-        const balanceMap = {};
+        const hasVotedMapTemp = {};
 
         for (const proposal of proposals) {
-          // Pobieranie szczegółów propozycji
           const proposalDetails = await dao.proposals(proposal.id);
-
-          // Pobieranie salda odbiorcy
-          const recipientBalance = await provider.getBalance(proposal.recipient);
-          balanceMap[proposal.recipient] = ethers.utils.formatEther(recipientBalance);
+          const signer = await provider.getSigner();
+          const userAddress = await signer.getAddress();
+          const hasVoted = await dao.hasVoted(proposal.id, userAddress);
+          hasVotedMapTemp[proposal.id] = hasVoted;
 
           proposalMap[proposal.id] = {
             votesFor: proposalDetails.votesFor.toString(),
             votesAgainst: proposalDetails.votesAgainst.toString(),
             finalized: proposalDetails.finalized,
-            description: proposalDetails.description
+            description: proposalDetails.description,
           };
         }
 
         setProposalData(proposalMap);
-        setRecipientBalances(balanceMap);
+        setHasVotedMap(hasVotedMapTemp);
       } catch (error) {
-        console.error("Error loading votes or balances:", error);
+        console.error('Error loading votes:', error);
       }
     };
 
-    loadVotesAndBalances();
+    loadVotes();
   }, [dao, proposals, provider]);
 
   const voteHandler = async (id, isFor) => {
@@ -45,8 +45,8 @@ const Proposals = ({ provider, dao, proposals, quorum, setIsLoading }) => {
       const transaction = await dao.connect(signer).vote(id, isFor);
       await transaction.wait();
     } catch (error) {
-      console.error('Error occurred during the vote transaction:', error);
-      window.alert('User rejected or transaction reverted');
+      console.error('Error during vote:', error);
+      window.alert('Transaction reverted or user rejected.');
     }
     setIsLoading(true);
   };
@@ -56,88 +56,66 @@ const Proposals = ({ provider, dao, proposals, quorum, setIsLoading }) => {
       const signer = await provider.getSigner();
       const transaction = await dao.connect(signer).finalizeProposal(id);
       await transaction.wait();
-    } catch {
-      window.alert('User rejected or transaction reverted');
+    } catch (error) {
+      console.error('Error finalizing proposal:', error);
+      window.alert('Transaction reverted or user rejected.');
     }
     setIsLoading(true);
   };
 
   return (
     <div>
-      <h3>Quorum: {quorum.toString()} votes</h3>
+      <h3 className="text-center mb-3">Quorum: {quorum.toString()} votes</h3>
       <Table striped bordered hover responsive>
         <thead>
           <tr>
             <th>#</th>
             <th>Proposal Name</th>
             <th>Description</th>
-            <th>Recipient Address</th>
-            <th>Recipient Balance (ETH)</th>
-            <th>Amount</th>
             <th>Status</th>
             <th>Votes For</th>
             <th>Votes Against</th>
-            <th>Cast Vote For</th>
-            <th>Cast Vote Against</th>
-            <th>Finalize</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {proposals.map((proposal, index) => {
             const votesFor = parseInt(proposalData[proposal.id]?.votesFor || 0);
             const votesAgainst = parseInt(proposalData[proposal.id]?.votesAgainst || 0);
-            const totalVotes = votesFor + votesAgainst;
-            const quorumMet = totalVotes >= quorum;
-            const votesForGreaterThanVotesAgainst = votesFor > votesAgainst;
-
-            // Pobieranie salda odbiorcy z mapy
-            const recipientBalance = recipientBalances[proposal.recipient];
+            const status = proposalData[proposal.id]?.finalized ? 'Approved' : 'Pending';
 
             return (
               <tr key={index}>
                 <td>{proposal.id.toString()}</td>
                 <td>{proposal.name}</td>
                 <td>{proposalData[proposal.id]?.description}</td>
-                <td>{proposal.recipient}</td>
-                <td>{recipientBalance} ETH</td>
-                <td>{ethers.utils.formatUnits(proposal.amount, 'ether')} ETH</td>
-                <td>{proposal.finalized ? 'Approved' : 'In Progress'}</td>
+                <td>
+                  <Badge bg={status === 'Approved' ? 'success' : 'warning'}>
+                    {status}
+                  </Badge>
+                </td>
                 <td>{proposalData[proposal.id]?.votesFor}</td>
                 <td>{proposalData[proposal.id]?.votesAgainst}</td>
                 <td>
-                  {!proposal.finalized && (
-                    <Button
-                      variant="primary"
-                      style={{ width: '100%' }}
-                      onClick={() => voteHandler(proposal.id, true)}
-                    >
-                      Vote For
-                    </Button>
-                  )}
-                </td>
-                <td>
-                  {!proposal.finalized && (
-                    <Button
-                      variant="danger"
-                      style={{ width: '100%' }}
-                      onClick={() => voteHandler(proposal.id, false)}
-                    >
-                      Vote Against
-                    </Button>
-                  )}
-                </td>
-                <td>
-                  {!proposal.finalized &&
-                    votesForGreaterThanVotesAgainst &&
-                    quorumMet && (
+                  {!proposalData[proposal.id]?.finalized && !hasVotedMap[proposal.id] && (
+                    <>
                       <Button
-                        variant="success"
-                        style={{ width: '100%' }}
-                        onClick={() => finalizeHandler(proposal.id)}
+                        variant="primary"
+                        className="me-2"
+                        onClick={() => voteHandler(proposal.id, true)}
                       >
-                        Finalize
+                        Vote For
                       </Button>
-                    )}
+                      <Button variant="danger" onClick={() => voteHandler(proposal.id, false)}>
+                        Vote Against
+                      </Button>
+                    </>
+                  )}
+                  {proposalData[proposal.id]?.finalized === false && votesFor > votesAgainst && (
+                    <Button variant="success" onClick={() => finalizeHandler(proposal.id)}>
+                      Finalize
+                    </Button>
+                  )}
                 </td>
               </tr>
             );

@@ -1,119 +1,93 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
 const hre = require("hardhat");
-const config = require('../src/config.json')
+const config = require('../src/config.json');
+const { parseUnits } = hre.ethers;
 
 const tokens = (n) => {
-  return ethers.utils.parseUnits(n.toString(), 'ether')
+  return parseUnits(n.toString(), 'ether');
 }
 
-const ether = tokens
+const ether = tokens;
 
 async function main() {
-  console.log(`Fetching accounts & network...\n`)
-
-  const accounts = await ethers.getSigners();
-
+  const accounts = await hre.ethers.getSigners();
   const funder = accounts[0];
-  console.log('Funder account:', funder.address);
-  
   const investor1 = accounts[1];
-  console.log('Investor 1 account:', investor1.address);
-  
   const investor2 = accounts[2];
-  console.log('Investor 2 account:', investor2.address);
-  
   const investor3 = accounts[3];
-  console.log('Investor 3 account:', investor3.address);
-  
   const recipient = accounts[4];
-  console.log('Recipient account:', recipient.address);
 
-  let transaction
+  let transaction;
 
-  // Fetch network
-  const { chainId } = await ethers.provider.getNetwork()
+  const { chainId } = await hre.ethers.provider.getNetwork();
 
-  console.log(`Fetching token and transferring to accounts...\n`)
+  if (!config[chainId]) {
+    console.error(`No configuration found for chain ID: ${chainId}`);
+    process.exit(1);
+  }
 
-  // Fetch deployed token
-  const token = await ethers.getContractAt('Token', config[chainId].token.address)
-  console.log(`Token fetched: ${token.address}\n`)
+  const tokenAbi = require('../artifacts/contracts/Token.sol/Token.json').abi;
+  const tokenAddress = config[chainId]?.token?.address;
 
-  // Send tokens to investors - each one gets 20%
-  transaction = await token.transfer(investor1.address, tokens(200000))
-  await transaction.wait()
+  if (!tokenAddress) {
+    console.error("Token address is undefined in config.json for the current network.");
+    process.exit(1);
+  }
 
-  transaction = await token.transfer(investor2.address, tokens(200000))
-  await transaction.wait()
+  const token = new hre.ethers.Contract(tokenAddress, tokenAbi, funder);
 
-  transaction = await token.transfer(investor3.address, tokens(200000))
-  await transaction.wait()
+  transaction = await token.transfer(investor1.address, tokens(200000));
+  await transaction.wait();
 
+  transaction = await token.transfer(investor2.address, tokens(200000));
+  await transaction.wait();
 
-  console.log(`Fetching dao...\n`)
+  transaction = await token.transfer(investor3.address, tokens(200000));
+  await transaction.wait();
 
-  // Fetch deployed dao
-  const dao = await ethers.getContractAt('DAO', config[chainId].dao.address)
-  console.log(`DAO fetched: ${dao.address}\n`)
+  const daoAbi = require('../artifacts/contracts/DAO.sol/DAO.json').abi;
+  const daoAddress = config[chainId]?.dao?.address;
 
-  // Funder sends Ether to DAO treasury
-  transaction = await funder.sendTransaction({ to: dao.address, value: ether(1000) }) // 1,000 Ether
-  await transaction.wait()
-  console.log(`Sent funds to dao treasury...\n`)
+  if (!daoAddress) {
+    console.error("DAO address is undefined in config.json for the current network.");
+    process.exit(1);
+  }
 
-   for (var i = 0; i < 3; i++) {
-      // Create Proposal
-      const description = `This is a description for Proposal ${i + 1}`;
-      transaction = await dao.connect(investor1).createProposal(
-        `Proposal ${i + 1}`, description, ether(100), recipient.address    
-      );
-      await transaction.wait()
+  const dao = new hre.ethers.Contract(daoAddress, daoAbi, funder);
 
-      // Vote 1
-       transaction = await dao.connect(investor1).vote(i + 1, true)
-       await transaction.wait()
+  transaction = await funder.sendTransaction({ to: dao.target, value: ether(1000) });
+  await transaction.wait();
 
-    // Vote 2
-       transaction = await dao.connect(investor2).vote(i + 1, false)
-       await transaction.wait()
+  transaction = await token.transfer(daoAddress, tokens(1000000));
+  await transaction.wait();
 
-      // Vote 3
-       transaction = await dao.connect(investor3).vote(i + 1, true)
-       await transaction.wait()
+  for (let i = 0; i < 3; i++) {
+    transaction = await dao.connect(investor1).createProposal(
+      `Proposal ${i + 1}`, 
+      `Description for proposal ${i + 1}`, 
+      ether(100), 
+      recipient.address
+    );
+    await transaction.wait();
 
-      // Finalize
-       transaction = await dao.connect(investor1).finalizeProposal(i + 1)
-       await transaction.wait()
+    await dao.connect(investor1).vote(i + 1, true);
+    await dao.connect(investor2).vote(i + 1, true);
+    await dao.connect(investor3).vote(i + 1, true);
 
-      console.log(`Created & Finalized Proposal ${i + 1}\n`)
-  } 
+    await dao.connect(investor1).finalizeProposal(i + 1);
+  }
 
-    console.log(`Creating one more proposal...\n`)
+  transaction = await dao.connect(investor1).createProposal(
+    `Proposal 4`, 
+    `Description for proposal 4`, 
+    ether(100), 
+    recipient.address
+  );
+  await transaction.wait();
 
-    // Create one more proposal
-    transaction = await dao.connect(investor1).createProposal(`Proposal 4`,'This is description', ether(100), recipient.address)
-    await transaction.wait()
-
-
-    // Vote 1
-     transaction = await dao.connect(investor2).vote(4,true)
-     await transaction.wait()
-
-    // Vote 2
-   // transaction = await dao.connect(investor3).vote(4,true)
-    //await transaction.wait()
-
-
-    console.log(`Finished.\n`)
+  await dao.connect(investor2).vote(4, true);
+  await dao.connect(investor3).vote(4, true);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
